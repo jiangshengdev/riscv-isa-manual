@@ -13,7 +13,12 @@ const outputLines: string[] = [];
 
 for (const table of tables) {
   const firstCellText = getFirstCellText(table);
-  const title = extractStrongText(firstCellText);
+  // 优先匹配 <strong>
+  let title = extractStrongText(firstCellText);
+  // 如果没有 <strong>，再匹配 Standard Extension header
+  if (!title) {
+    title = extractStandardExtensionHeader(table);
+  }
   if (title) {
     const cleanTitle = striptags(title);
     outputLines.push(`// ${cleanTitle}`);
@@ -48,9 +53,21 @@ function title2Var(title: string): string {
  * 获取表格第一行第一格的文本内容
  */
 function getFirstCellText(table: Table): string {
-  const rows = table.getRows().body;
-  if (rows.length === 0 || rows[0].length === 0) return "";
-  return rows[0][0].getText();
+  const rows = table.getRows();
+  const head = rows.head;
+
+  const th = head[0];
+  if (th && th.length === 1) {
+    const firstCell = th[0];
+
+    if (firstCell) {
+      return firstCell.getText();
+    }
+  }
+
+  const body = rows.body;
+  if (body.length === 0 || body[0].length === 0) return "";
+  return body[0][0].getText();
 }
 
 /**
@@ -59,6 +76,23 @@ function getFirstCellText(table: Table): string {
 function extractStrongText(text: string): string | null {
   const match = text.match(/<strong>(.*?)<\/strong>/);
   return match ? match[1] : null;
+}
+
+/**
+ * 匹配 header 区域的 "Standard Extension" 标题
+ */
+function extractStandardExtensionHeader(table: Table): string | null {
+  const rows = table.getRows();
+  const head = rows.head;
+  if (head && head.length > 0 && head[0].length > 0) {
+    const headerText = head[0][0].getText();
+    // 支持如 RV32Zfh Standard Extension、RV64Zfh Standard Extension (in addition to RV32Zfh)、Zawrs Standard Extension
+    const match = headerText.match(
+      /([A-Za-z0-9/ ]+Standard Extension( \(.*?\))?)/,
+    );
+    if (match) return match[1].trim();
+  }
+  return null;
 }
 
 /**
